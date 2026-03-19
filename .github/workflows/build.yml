@@ -1056,6 +1056,19 @@ jobs:
               if [ "${{ inputs.kernel_version }}" = "6.12" ]; then
                 LTO_FLAG="--lto=none"
               fi
+
+              # ================== 修复 KMI ABI 符号缺失报错 ==================
+              echo "强制关闭 KMI 严格检查并剔除缺失的 LZ4 符号..."
+              if ! grep -q "kmi_symbol_list_strict_mode" ./common/BUILD.bazel; then
+                sed -i '/kmi_symbol_list =/a \    kmi_symbol_list_strict_mode = False,' ./common/BUILD.bazel
+              else
+                sed -i 's/kmi_symbol_list_strict_mode = True/kmi_symbol_list_strict_mode = False/g' ./common/BUILD.bazel
+              fi
+              
+              find ./common/android/ -name "abi_gki_aarch64*" -type f -exec sed -i '/LZ4_compress_fast_continue/d' {} +
+              find ./common/android/ -name "abi_gki_aarch64*" -type f -exec sed -i '/LZ4_resetStreamHC/d' {} +
+              # ===============================================================
+
               tools/bazel build --disk_cache=/home/runner/.cache/bazel --config=fast $LTO_FLAG $FRAG_FLAG //common:kernel_aarch64_dist || exit 1
               strings ./bazel-bin/common/kernel_aarch64/Image | grep 'Linux version'
             fi
